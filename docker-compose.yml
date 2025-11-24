@@ -1,0 +1,74 @@
+name: vi-quest-compose
+
+# Les services, c'est tous les containers à créer / à maintenir
+services:
+  # Container "mysql", qui utilisera une image, des volumes, un réseau, des ports, etc...
+  mysql:
+    image: mysql:8.0.44-debian
+    container_name: vi-quest-mysql
+
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+
+    volumes:
+      - /home/azureuser/Viviana/quest-init/quest-init.sql:/docker-entrypoint-initdb.d/setup.sql
+      - vi-db_data:/var/lib/mysql
+
+    # Comment déterminer que mysql est prêt à l'emploi
+    healthcheck:
+      test: [ "CMD", "mysqladmin", "ping", "-h", "localhost" ]
+      timeout: 10s
+      retries: 10
+
+    networks:
+      - vi-quest
+
+  # Container "java"
+  boot:
+    image: ajc/quest:boot
+    container_name: vi-quest-boot
+
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:mysql://vi-quest-mysql:3306/projet_quest
+      SPRING_DATASOURCE_PASSWORD: root
+
+    ports:
+      - 8081:8080
+
+    networks:
+      - vi-quest
+
+    # Ce container dépend d'un autre container (ou plusieurs autres)
+    depends_on:
+      # L'instruction en dessous permet simplement de démarrer java après mysql
+      # - mysql
+
+      # L'instruction en dessous permet d'attendre l'état de santé
+      mysql:
+        condition: service_healthy
+
+  #Container angular
+  angular:
+    image: ajc/quest:angular
+    container_name: vi-quest-angular
+
+    depends_on:
+      - boot
+
+    ports:
+      - 81:80
+
+    networks:
+      - vi-quest
+
+
+# Les volumes, c'est tous les volumes nécessaires pour les services
+volumes:
+  vi-db_data:
+    name: vi-quest-db-data
+
+# Les networks, c'est le ou les réseaux nécessaire(s) pour les services
+networks:
+  vi-quest:
+    name: vi-quest
+
